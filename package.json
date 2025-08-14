@@ -1,5 +1,5 @@
 {
-  "name": "crypto-dashboard",
+  "name": "crypto-dashboard1",
   "version": "1.0.0",
   "description": "داشبورد قیمت و آمار آنچین برای ترموکس",
   "main": "server.js",
