@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>داشبورد قیمت + آن‌چین Node.js</title>
+<style>
+body{font-family:Tahoma,Vazirmatn,system-ui;background:#071018;color:#e6eef8;margin:0;padding:14px;}
+.wrap{max-width:900px;margin:0 auto;}
+h1{text-align:center;margin-bottom:12px;font-size:1.2rem;}
+button{background:#22c1b6;color:#041014;border:0;padding:7px 12px;border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:8px;}
+table{width:100%;border-collapse:collapse;margin-top:8px;}
+th,td{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.04);text-align:center;font-size:0.95rem;}
+th{color:#9fb7c9;}
+.muted{opacity:.7;font-size:0.9rem;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>📊 قیمت و آمار آن‌چین</h1>
+<button id="refreshBtn">رفرش / بارگذاری</button>
+<button id="downloadBtn">دانلود CSV تاریخچه</button>
+<table>
+<thead><tr><th>نماد</th><th>قیمت (USD)</th><th>مارکت‌کپ</th><th>حجم ۲۴h</th><th>تغییر ۲۴h</th></tr></thead>
+<tbody id="tableBody"><tr><td colspan="5" class="muted">منتظر رفرش...</td></tr></tbody>
+</table>
+
+<div style="margin-top:12px;">
+<h3>داده‌های آن‌چین</h3>
+<div id="onchainContent" class="muted">بعد از رفرش اینجا نمایش داده می‌شود</div>
+</div>
+</div>
+
+<script>
+let latestData = null;
+let history = []; // آرایه برای ذخیره تاریخچه
+
+async function loadData(){
+  const tBody = document.getElementById('tableBody');
+  const onchainDiv = document.getElementById('onchainContent');
+  tBody.innerHTML='<tr><td colspan="5" class="muted">در حال بارگذاری...</td></tr>';
+  onchainDiv.textContent='در حال دریافت داده آن‌چین...';
+  try{
+    const res = await fetch('/api/data');
+    const js = await res.json();
+    latestData = js; 
+
+    // اضافه کردن رکورد جدید به تاریخچه با timestamp
+    const timestamp = new Date().toISOString();
+    js.coins.forEach(c=>{
+      const oc = js.onchain.find(o=>o.id===c.id);
+      const stats = oc && oc.stats ? oc.stats : {};
+      history.push({
+        timestamp,
+        id: c.id,
+        price: c.price || '',
+        market_cap: c.market_cap || '',
+        volume: c.volume || '',
+        change24: c.change24 || '',
+        unique_addresses: stats.unique_addresses || '',
+        active_addresses: stats.active_addresses || '',
+        large_transactions: stats.large_transactions || '',
+        new_addresses: stats.new_addresses || ''
+      });
+    });
+
+    // جدول قیمت
+    let rows='';
+    js.coins.forEach(c=>{
+      rows+=`<tr>
+        <td>${c.id}${c.error?'<span style="color:red"> (خطا)</span>':''}</td>
+        <td>${c.price!==null?c.price.toFixed(8):'—'}</td>
+        <td>${c.market_cap!==null?c.market_cap.toLocaleString():'—'}</td>
+        <td>${c.volume!==null?c.volume.toLocaleString():'—'}</td>
+        <td>${c.change24!==null?c.change24.toFixed(2)+'%':'—'}</td>
+      </tr>`;
+    });
+    tBody.innerHTML = rows;
+
+    // آن‌چین
+    let ocHtml='';
+    js.onchain.forEach(o=>{
+      if(o.error) ocHtml+=`<div>${o.id}: خطا</div>`;
+      else if(o.stats){
+        let parts=[];
+        for(const k in o.stats){ parts.push(`${k}: ${o.stats[k]}`);}
+        ocHtml+=`<div><strong>${o.id}:</strong> ${parts.join(' | ')}</div>`;
+      } else {ocHtml+=`<div>${o.id}: داده ندارد</div>`;}
+    });
+    onchainDiv.innerHTML=ocHtml;
+
+  }catch(e){
+    tBody.innerHTML='<tr><td colspan="5" class="muted">خطا در دریافت داده‌ها</td></tr>';
+    onchainDiv.textContent='خطا در دریافت داده آن‌چین';
+    console.error(e);
+  }
+}
+
+// دانلود CSV تاریخچه
+function downloadCSV(){
+  if(history.length===0){ alert('ابتدا داده‌ها را بارگذاری کنید'); return; }
+  let csv='زمان,نماد,قیمت,مارکت‌کپ,حجم ۲۴h,تغییر ۲۴h,آدرس‌ها,آدرس‌های فعال,تراکنش‌های بزرگ,کیف پول‌های جدید\n';
+  history.forEach(r=>{
+    csv+=`${r.timestamp},${r.id},${r.price},${r.market_cap},${r.volume},${r.change24},${r.unique_addresses},${r.active_addresses},${r.large_transactions},${r.new_addresses}\n`;
+  });
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'crypto_dashboard_history.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('refreshBtn').addEventListener('click',loadData);
+document.getElementById('downloadBtn').addEventListener('click',downloadCSV);
+</script>
+</body>
+</html>
